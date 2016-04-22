@@ -1,23 +1,27 @@
+// Mingw compile using: g++ example.cpp -std=gnu++11
+// and add / uncomment this line
+// #define UNICODE
+// to make UNICODE APP
 #include <Windows.h>
 #include <iostream>
-#include "CLine.h"
+#include "CmdLine.h"
 
 int main()
 {
-    CmdLine::CLineW Cline;
+    CmdLine::CLine Cline;
 
     std::cout << Cline.Count() << std::endl;
 
     for (int idx = 0; idx < Cline.Count(); ++idx)
         std::wcout << idx << " " << Cline.GetArg(idx) << std::endl;
 
-    WCHAR Buffer[9] = { 0 };
+    TCHAR Buffer[9] = { 0 };
     INT len = 9;
     Cline.GetPartialArg(0, Buffer, &len);
-    std::wcout << "partial arg: "<< Buffer << std::endl;
+    std::wcout << __TEXT("partial arg: ")<< Buffer << std::endl;
 
-    auto arg = Cline.GetArg(L"open:");
+    auto arg = Cline.GetArg(__TEXT("open:"));
     if (arg == nullptr)
-        arg = L"\"open\" arg not available";
-    std::wcout <<  "value after open arg: \""<< arg <<"\""<< std::endl;
+        arg = __TEXT("\"open\" arg not available");
+    std::wcout << __TEXT("value after open arg: ")<< arg << std::endl;
 }
