@@ -12,188 +12,199 @@
 * use this header if you are unable to switch to main function
 * which provide such support: int main(int argc, char*argv[])
 */
-namespace CmdLine
-{
-class CLine
-{
-    union
-    {
-        LPWSTR* m_pCmdLinesW;
-        LPSTR* m_pCmdLinesA;
-    };
-    INT* m_Lens;
-    INT m_Count;
-    UINT m_MaxLen;
-public:
-    CLine()
-        : m_pCmdLinesW(nullptr)
-        , m_Lens(nullptr)
-        , m_Count(0)
-        , m_MaxLen(0)
-    {
-        m_pCmdLinesW = CommandLineToArgvW(GetCommandLineW(), &m_Count);
-        m_Lens = new INT[m_Count];
-        for (int idx = 0; idx < m_Count; ++idx)
-        {
-            auto Len = wcslen(m_pCmdLinesW[idx]);
-            if (m_MaxLen < Len)
-                m_MaxLen = Len;
-            m_Lens[idx] = Len;
-        }
-#ifndef UNICODE
-        auto cmdLines = new LPSTR[m_Count];
-        for (INT idx = 0; idx < m_Count; ++idx)
-            cmdLines[idx] = _convert(m_pCmdLinesW[idx], m_Lens[idx]);
 
-        LocalFree(m_pCmdLinesW);
-        m_pCmdLinesA = cmdLines;
+#ifndef ArraySize
+#define ArraySize(Array) sizeof (Array)/sizeof(Array[0])
 #endif
-    }
-    ~CLine()
+
+namespace CmdLine {
+    template <typename T>
+    class CLine
     {
-#ifdef UNICODE
-        if (m_pCmdLinesW)
-            LocalFree(m_pCmdLinesW);
-#else
-        if (m_pCmdLinesA)
-            delete[] m_pCmdLinesA;
-#endif
-        if (m_Lens)
-            delete[] m_Lens;
-    }
-    INT Count()
-    {
-        return m_Count;
-    }
-#ifdef UNICODE
-    LPCWSTR GetArg(INT idx)
-#else
-    LPCSTR GetArg(INT idx)
-#endif
-    {
-        return idx < m_Count
-#ifdef UNICODE
-            ? m_pCmdLinesW[idx]
-#else
-            ? m_pCmdLinesA[idx]
-#endif
-            : nullptr;
-    }
-    // 0 based
-#ifdef UNICODE
-    LPCWSTR GetArg(INT idx, INT* Len)
-#else
-    LPCSTR GetArg(INT idx, INT* Len)
-#endif
-    {
-        if (idx < m_Count)
+    protected:
+        T** m_pCmdLine;
+        INT* m_lens;
+        INT m_count;
+        size_t m_maxLen;
+        CLine()
+            : m_pCmdLine(nullptr)
+            , m_lens(nullptr)
+            , m_count(0)
+            , m_maxLen(0)
+        {}
+    public:
+        virtual ~CLine()
         {
-            if (Len)
-                *Len = m_Lens[idx];
-#ifdef UNICODE
-            return m_pCmdLinesW[idx];
-#else
-            return m_pCmdLinesA[idx];
-#endif
+            if (m_lens)
+                delete[] m_lens;
         }
-        return nullptr;
-    }
-    // 0 based
-    INT GetArgLen(INT idx)
-    {
-        return idx < m_Count
-            ? m_Lens[idx]
-            : 0;
-    }
-    // return copied len to buffer
-#ifdef UNICODE
-    INT GetPartialArg(INT idx, LPWSTR szBuffer, INT* BufferMax)
-#else
-    INT GetPartialArg(INT idx, LPSTR szBuffer, INT* BufferMax)
-#endif
-    {
-        if ((idx < m_Count) && BufferMax)
+        INT count()
         {
-            if (szBuffer == nullptr)
-                *BufferMax = GetArgLen(idx);
-            else
+            return m_count;
+        }
+        INT getArgLen(INT index)
+        {
+            return (index < m_count)
+                ? m_lens[index]
+                : 0;
+        }
+        const T* getArg(INT index)
+        {
+            return (index < m_count)
+                ? m_pCmdLine[index]
+                : nullptr;
+        }
+        const T* getArg(const T* arg)
+        {
+            if (auto len = _len(arg))
             {
-                INT Len = 0;
-                if (auto szArg = GetArg(idx, &Len))
+                T buffer[MAX_PATH] = { 0 };
+                INT size = ArraySize(buffer);
+                for (INT index = 0; index < m_count; ++index)
                 {
-                    auto MaxLen = *BufferMax - 1;
-#ifdef min
-#undef min
-#endif
-                    auto Max = std::min(Len, MaxLen);
-                    memcpy(szBuffer, szArg, Max
-#ifdef UNICODE
-                        * sizeof(WCHAR)
-#endif
-                        );
-                    szBuffer[Max] = 0;
-                    return Max;
+                    if ((getPartialArg(index, buffer, &size)) >= len)
+                    {
+                        buffer[len] = '\0';
+                        if ((_cmpi(buffer, arg)) == 0)
+                        {
+                            auto p = getArg(index);
+                            return &p[len];
+                        }
+                    }
                 }
             }
+            return nullptr;
         }
-        return 0;
-    }
-#ifdef UNICODE
-    LPCWSTR GetArg(LPCWSTR szArg)
-#else
-    LPCSTR GetArg(LPCSTR szArg)
-#endif
-    {
-#ifdef UNICODE
-#if defined (_MSC_VER)
-        if (INT Len = wcsnlen_s(szArg, m_MaxLen))
-#else
-        if (INT Len = wcslen(szArg))
-#endif
+        const T* getArg(INT index, INT* len)
         {
-            WCHAR
-#else
-#if defined (_MSC_VER)
-        if (INT Len = strnlen_s(szArg, m_MaxLen))
-#else
-        if (INT Len = strlen(szArg))
-#endif
+            if (index < m_count)
+            {
+                if (len)
+                    *len = m_lens[index];
+                return m_pCmdLine[index];
+            }
+            if (len)
+                *len = 0;
+            return nullptr;
+        }
+#pragma push_macro("min")
+#undef min
+        size_t getPartialArg(INT index, T* buffer, INT* bufferMax)
         {
-            CHAR
-#endif
-                Buffer[MAX_PATH] = { 0 };
-#define ArraySize(Array) sizeof (Array)/sizeof(Array[0])
-            INT size = ArraySize(Buffer);
-#undef ArraySize
-            for (INT idx = 0; idx < m_Count; ++idx)
-                if (GetPartialArg(idx, Buffer, &size) >= Len)
+            if (bufferMax && (index < m_count))
+            {
+                if (buffer == nullptr)
+                    *bufferMax = getArgLen(index);
+                else
                 {
-                    Buffer[Len] = 0;
-#ifdef UNICODE
-                    if (_wcsicmp(Buffer, szArg) == 0)
-#else
-                    if (_stricmp(Buffer, szArg) == 0)
-#endif
-                    return &GetArg(idx)[Len];
+                    INT len = 0;
+                    if (auto arg = getArg(index, &len))
+                    {
+                        auto maxLen = *bufferMax - 1;
+                        auto max_ = std::min(len, maxLen);
+                        memcpy(buffer, arg, (max_ * sizeof (T)));
+                        buffer[max_] = '\0';
+                        return max_;
+                    }
                 }
+            }
+            return 0;
         }
-        return nullptr;
-    }
-#ifndef UNICODE
-private:
-    LPSTR _convert(LPCWSTR szStr, INT& Len)
-    {
-        if (auto LenA = WideCharToMultiByte(CP_ACP, 0, szStr, Len, NULL, 0, NULL, NULL))
+#pragma pop_macro("min")
+    protected:
+        virtual size_t _len(const T*) = 0;
+        virtual int _cmpi(const T*, const T*) = 0;
+
+        LPWSTR* _init()
         {
-            auto ret = new CHAR[LenA + 1];
-            WideCharToMultiByte(CP_ACP, 0, szStr, Len, ret, LenA, NULL, NULL);
-            ret[LenA] = 0;
-            Len = LenA;
-            return ret;
+            auto pCmdLine = CommandLineToArgvW(GetCommandLineW(), &m_count);
+            m_lens = new INT[m_count];
+
+            for (int idx = 0; idx < m_count; ++idx)
+            {
+                auto Len = wcslen(pCmdLine[idx]);
+                m_lens[idx] = Len;
+
+                if (m_maxLen < Len)
+                    m_maxLen = Len;
+
+            }
+            return pCmdLine;
         }
-        return nullptr;
-    }
-#endif
+    };
+
+    class CLineA
+        : public CLine<CHAR>
+    {
+    public:
+        CLineA()
+            : CLine()
+        {
+            auto pCmdLine = _init();
+            m_pCmdLine = new LPSTR[m_count];
+            for (INT idx = 0; idx < m_count; ++idx)
+                m_pCmdLine[idx] = _convert(pCmdLine[idx], m_lens[idx]);
+
+            LocalFree(pCmdLine);
+        }
+        ~CLineA()
+        {
+            for (INT index = 0; index < m_count; ++index)
+                delete m_pCmdLine[index];
+
+            delete[] m_pCmdLine;
+        }
+    private:
+        LPSTR _convert(LPCWSTR str, INT& Len)
+        {
+            if (auto len = WideCharToMultiByte(CP_ACP, 0, str, Len, NULL, 0, NULL, NULL))
+            {
+                auto ret = new CHAR[len + 1];
+                WideCharToMultiByte(CP_ACP, 0, str, Len, ret, len, NULL, NULL);
+                ret[len] = '\0';
+                Len = len;
+                return ret;
+            }
+            return nullptr;
+        }
+        size_t _len(const CHAR* str) override final
+        {
+            return strnlen(str, m_maxLen);
+        }
+        int _cmpi(const CHAR* str1, const CHAR* str2) override final
+        {
+            return _stricmp(str1, str2);
+        }
+    };
+    class CLineW
+        : public CLine<WCHAR>
+    {
+    public:
+        CLineW()
+            : CLine()
+        {
+            m_pCmdLine = _init();
+        }
+        ~CLineW()
+        {
+            LocalFree(m_pCmdLine);
+        }
+    private:
+        size_t _len(const WCHAR* str) override final
+        {
+            return wcsnlen(str, m_maxLen);
+        }
+        int _cmpi(const WCHAR* str1, const WCHAR* str2) override final
+        {
+            return _wcsicmp(str1, str2);
+        }
     };
 }
+
+#ifdef UNICODE
+#define CLine CLineW
+#else
+#define CLine CLineA
+#endif
+
 #endif // __CMD_LINE_H__
