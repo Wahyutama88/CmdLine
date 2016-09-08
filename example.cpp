@@ -20,7 +20,7 @@ int main()
     Cline.GetPartialArg(0, Buffer, &len);
     std::wcout << __TEXT("partial arg: ")<< Buffer << std::endl;
 
-    auto arg = Cline.GetArg(__TEXT("open:"));
+    TCHAR* arg = const_cast<TCHAR*>(Cline.getArg(__TEXT("open:")));
     if (arg == nullptr)
         arg = __TEXT("\"open\" arg not available");
     std::wcout << __TEXT("value after open arg: ")<< arg << std::endl;
