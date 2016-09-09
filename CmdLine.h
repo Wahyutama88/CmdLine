@@ -19,21 +19,21 @@
 
 namespace CmdLine {
     template <typename T>
-    class CLine
+    class CLineT
     {
     protected:
         T** m_pCmdLine;
         INT* m_lens;
         INT m_count;
         size_t m_maxLen;
-        CLine()
+        CLineT()
             : m_pCmdLine(nullptr)
             , m_lens(nullptr)
             , m_count(0)
             , m_maxLen(0)
         {}
     public:
-        virtual ~CLine()
+        virtual ~CLineT()
         {
             if (m_lens)
                 delete[] m_lens;
@@ -134,11 +134,11 @@ namespace CmdLine {
     };
 
     class CLineA
-        : public CLine<CHAR>
+        : public CLineT<CHAR>
     {
     public:
         CLineA()
-            : CLine()
+            : CLineT()
         {
             auto pCmdLine = _init();
             m_pCmdLine = new LPSTR[m_count];
@@ -177,11 +177,11 @@ namespace CmdLine {
         }
     };
     class CLineW
-        : public CLine<WCHAR>
+        : public CLineT<WCHAR>
     {
     public:
         CLineW()
-            : CLine()
+            : CLineT()
         {
             m_pCmdLine = _init();
         }
